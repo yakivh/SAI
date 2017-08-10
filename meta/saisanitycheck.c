@@ -3535,6 +3535,14 @@ void check_acl_table_fields_and_acl_entry_fields()
              * all ranges on each acl table when it's not necessary.
              */
         }
+        else if (SAI_ACL_TABLE_ATTR_USER_DEFINED_FIELD_GROUP_MIN <= mtable->attrid &&
+                 mtable->attrid <= SAI_ACL_TABLE_ATTR_USER_DEFINED_FIELD_GROUP_MAX)
+        {
+            /*
+             * These attritutes are exeptions. It's value is sai_object_id_t representing a UDF group.
+             * It is needed for a table, so the data for UDF group can be specified as entry attribute.
+             */
+        }
         else
         {
             if (mtable->flags != SAI_ATTR_FLAGS_CREATE_ONLY)

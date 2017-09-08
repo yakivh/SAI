@@ -780,7 +780,7 @@ typedef struct _sai_udf_match_api_t
 } sai_udf_match_api_t;
 ~~~
 
-## Example ##
+## Hash example ##
 
 The following example shows how to define UDF hash fields for all IPv4 packets. It first defines one UDF match object to match GRE packet with specific GRE protocol type. It then creates two UDF groups, and creates one UDF object for each UDF group. Finally, it uses these two UDF groups as the hash fields for all IPv4 packets.
 
@@ -855,4 +855,62 @@ sai_hash_api->create_hash(&hash_id, 1, &hash_attr);
 switch_attr.id = (sai_attr_id_t)SAI_SWITCH_ATTR_ECMP_HASH_IPV4;
 switch_attr.value.oid = hash_id;
 sai_switch_api->set_switch_attribute(&switch_attr);
+~~~
+
+## ACL example ##
+
+The UDF group defines a packet type, offset and length of a data to be matched. 
+The ACL Entry's field defines the actual data values.
+
+The example below shows how to match IPv4 packets with header length of 20 bytes.
+
+~~~cpp
+/* UDF Match for IPv4 packet
+udf_match_attrs[0].id = SAI_UDF_MATCH_ATTR_L2_TYPE;
+udf_match_attrs[0].value.aclfield.enable = true;
+udf_match_attrs[0].value.aclfield.data.u16 = 0x0800;
+udf_match_attrs[0].value.aclfield.mask.u16 = 0xFFFF;
+udf_api->create_udf_match(&udf_match_id, switch_id, 1, udf_match_attrs);
+
+/* UDF Group with lenght 1 */
+udf_group_attrs[0].id = SAI_UDF_GROUP_ATTR_TYPE;
+udf_group_attrs[0].value.s32 = SAI_UDF_GROUP_TYPE_GENERIC;
+udf_group_attrs[1].id = SAI_UDF_GROUP_ATTR_LENGTH;
+udf_group_attrs[1].value.s32 = 1; /* We need to match 4 bits, so the length is 1 byte */
+udf_api->create_udf_group(&udf_group_id, switch_id, 2, udf_group_attrs);
+
+/* UDF with offest 0 */
+udf_attrs[0].id = SAI_UDF_ATTR_MATCH_ID;
+udf_attrs[0].value.oid = udf_match_id;
+udf_attrs[1].id = SAI_UDF_ATTR_GROUP_ID;
+udf_attrs[1].value.oid = udf_group_id;
+udf_attrs[2].id = SAI_UDF_ATTR_BASE;
+udf_attrs[2].value.s32 = SAI_UDF_BASE_L3;
+udf_attrs[3].id = SAI_UDF_ATTR_OFFSET;
+udf_attrs[3].value.u16 = 0; /* The offset to 'Internet Header Length' within IPv4 packet */
+udf_api->create_udf(&udf_id, switch_id, 4, udf_attrs));
+
+/* ACL Table */
+acl_attrs[0].id = SAI_ACL_TABLE_ATTR_ACL_STAGE;
+acl_attrs[0].value.s32 = SAI_ACL_STAGE_INGRESS;
+acl_attrs[1].id = SAI_ACL_TABLE_ATTR_USER_DEFINED_FIELD_GROUP_MIN;
+acl_attrs[1].value.oid = udf_group_id;
+acl_api->create_acl_table(&acl_table_id, switch_id, 2, acl_attrs);
+
+/* ACL Entry */
+acl_attrs[0].id = SAI_ACL_ENTRY_ATTR_TABLE_ID;
+acl_attrs[0].value.oid = acl_table_id;
+acl_attrs[1].id = SAI_ACL_ENTRY_ATTR_PRIORITY;
+acl_attrs[1].value.u32 = 1;
+acl_attrs[2].id = SAI_ACL_ENTRY_ATTR_ADMIN_STATE;
+acl_attrs[2].value.booldata = true;
+acl_attrs[3].id = SAI_ACL_ENTRY_ATTR_USER_DEFINED_FIELD_MIN;
+acl_attrs[3].value.aclfield.enable = true;
+udf_val[0] = 0x05;  /* 5 words = 20 bytes */
+udf_mask[0] = 0x0F; /* match only half of a byte since another half is 'Version' field */
+acl_attrs[3].value.aclfield.data.u8list.count = 1;
+acl_attrs[3].value.aclfield.data.u8list.list = udf_val;
+acl_attrs[3].value.aclfield.mask.u8list.count = 1;
+acl_attrs[3].value.aclfield.mask.u8list.list = udf_mask;
+acl_api->create_acl_entry(&acl_entry_id, get_switch_id(), 4, acl_attrs));
 ~~~
